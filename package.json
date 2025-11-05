@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "jszip": "^3.10.1",
     "three": "^0.181.0",
     "upng-js": "^2.1.0"
   },

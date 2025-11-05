@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GLB Texture Re-encode (PNG quant + JPEG + Resize)</title>
+    <title>
+      GLB Texture Re-encode (PNG quant + JPEG + Resize + ZIP + Multi)
+    </title>
     <style>
       :root {
         color-scheme: dark light;
@@ -49,14 +51,20 @@
       small {
         opacity: 0.8;
       }
+      .btns {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
     </style>
   </head>
   <body>
     <h1>GLB Texture Re-encoder</h1>
 
     <div class="row">
-      <label for="file">GLB file:</label>
-      <input id="file" type="file" accept=".glb" />
+      <label for="file">GLB file(s):</label>
+      <input id="file" type="file" accept=".glb" multiple />
+      <small>Select one or many .glb files</small>
     </div>
 
     <div class="row">
@@ -97,12 +105,14 @@
       <span id="jpegQVal">0.70</span>
     </div>
 
-    <div class="row" style="margin-top: 8px">
-      <button id="run" disabled>Re-encode & Export GLB</button>
-      <a id="download" class="hidden" download="compressed.glb">Download</a>
+    <div class="row btns" style="margin-top: 8px">
+      <button id="run" disabled>Re-encode & Export</button>
+      <a id="download" class="hidden">Download</a>
+      <button id="exportZip" disabled>Export Textures ZIP</button>
+      <a id="zipLink" class="hidden" download="textures.zip">Download ZIP</a>
     </div>
 
-    <div id="log">Load a .glb to begin…</div>
+    <div id="log">Load .glb file(s) to begin…</div>
 
     <script type="module" src="/main.js"></script>
   </body>
