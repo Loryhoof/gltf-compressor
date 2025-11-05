@@ -75,7 +75,7 @@ runBtn.addEventListener("click", async () => {
 
       const blob = new Blob([out], { type: "model/gltf-binary" });
       const url = URL.createObjectURL(blob);
-      const outName = file.name.replace(/\.glb$/i, ".reencoded.glb");
+      const outName = file.name.replace(/\.glb$/i, ".glb");
       results.push({ name: outName, url });
       log(`Done: ${outName}`);
     } catch (err) {

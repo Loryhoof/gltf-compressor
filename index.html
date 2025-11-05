@@ -3,102 +3,182 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GLB Texture Re-encode (Multi)</title>
+    <title>GLB Texture Optimizer</title>
     <style>
       :root {
         color-scheme: dark light;
+        --accent: #0078d7;
+        --border: color-mix(in srgb, canvastext, canvas 80%);
+        --surface: color-mix(in srgb, canvas, canvastext 4%);
+        --surface-alt: color-mix(in srgb, var(--surface), canvastext 2%);
       }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        margin: 24px;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: canvas;
+        color: canvastext;
+        margin: 0;
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
+
       h1 {
-        margin: 0 0 12px;
+        margin-bottom: 1.5rem;
+        font-size: 1.8rem;
+        letter-spacing: -0.01em;
+        font-weight: 600;
       }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem 2rem;
+        max-width: 640px;
+        width: 100%;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+
       .row {
         display: flex;
-        gap: 12px;
         align-items: center;
         flex-wrap: wrap;
-        margin-bottom: 12px;
+        gap: 12px;
+        margin-bottom: 1rem;
       }
+
       label {
         font-weight: 600;
+        flex: 1 0 140px;
       }
-      input[type="range"] {
-        width: 260px;
-      }
+
+      input[type="range"],
       select {
-        padding: 6px;
+        flex: 2 1 auto;
+        accent-color: var(--accent);
       }
+
+      select,
+      button,
+      input[type="file"] {
+        font: inherit;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--surface-alt);
+        color: inherit;
+        transition: border-color 0.2s, background 0.2s;
+      }
+
+      select:hover,
+      button:hover,
+      input[type="file"]:hover {
+        border-color: var(--accent);
+      }
+
+      button {
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+        font-weight: 600;
+        border: none;
+      }
+
+      button:disabled {
+        background: #999;
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
       #log {
         white-space: pre-wrap;
-        background: rgba(0, 0, 0, 0.06);
-        padding: 12px;
+        background: var(--surface);
         border-radius: 8px;
-        max-width: 1000px;
-        min-height: 140px;
+        padding: 1rem;
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        border: 1px solid var(--border);
+        max-width: 640px;
+        width: 100%;
+        overflow-x: auto;
       }
-      button {
-        padding: 8px 12px;
+
+      a#download {
+        text-decoration: none;
+        background: var(--accent);
+        color: white;
+        padding: 0.5rem 0.9rem;
+        border-radius: 6px;
         font-weight: 600;
       }
+
+      small {
+        opacity: 0.7;
+        flex-basis: 100%;
+      }
+
       .hidden {
         display: none;
-      }
-      small {
-        opacity: 0.8;
       }
     </style>
   </head>
   <body>
-    <h1>GLB Texture Re-encoder</h1>
+    <h1>GLB Texture Optimizer</h1>
 
-    <div class="row">
-      <label for="file">GLB files:</label>
-      <input id="file" type="file" accept=".glb" multiple />
-      <small>Supports multiple .glb files</small>
-    </div>
+    <div class="card">
+      <div class="row">
+        <label for="file">GLB files:</label>
+        <input id="file" type="file" accept=".glb" multiple />
+        <small>Supports multiple .glb files</small>
+      </div>
 
-    <div class="row">
-      <label for="resizeFactor">Resize factor:</label>
-      <select id="resizeFactor">
-        <option value="1">1× (no resize)</option>
-        <option value="0.5">1/2</option>
-        <option value="0.25">1/4</option>
-        <option value="0.125">1/8</option>
-      </select>
-    </div>
+      <div class="row">
+        <label for="resizeFactor">Resize factor:</label>
+        <select id="resizeFactor">
+          <option value="1">1× (no resize)</option>
+          <option value="0.5">1/2</option>
+          <option value="0.25">1/4</option>
+          <option value="0.125">1/8</option>
+        </select>
+      </div>
 
-    <div class="row">
-      <label for="pngColors">PNG colors:</label>
-      <input
-        id="pngColors"
-        type="range"
-        min="16"
-        max="256"
-        step="16"
-        value="128"
-      />
-      <span id="pngColorsVal">128</span>
-    </div>
+      <div class="row">
+        <label for="pngColors">PNG colors:</label>
+        <input
+          id="pngColors"
+          type="range"
+          min="16"
+          max="256"
+          step="16"
+          value="128"
+        />
+        <span id="pngColorsVal">128</span>
+      </div>
 
-    <div class="row">
-      <label for="jpegQ">JPEG quality:</label>
-      <input
-        id="jpegQ"
-        type="range"
-        min="0.1"
-        max="0.95"
-        step="0.05"
-        value="0.7"
-      />
-      <span id="jpegQVal">0.70</span>
-    </div>
+      <div class="row">
+        <label for="jpegQ">JPEG quality:</label>
+        <input
+          id="jpegQ"
+          type="range"
+          min="0.1"
+          max="0.95"
+          step="0.05"
+          value="0.7"
+        />
+        <span id="jpegQVal">0.70</span>
+      </div>
 
-    <div class="row" style="margin-top: 8px">
-      <button id="run" disabled>Re-encode & Export</button>
-      <a id="download" class="hidden">Download</a>
+      <div class="row" style="margin-top: 1rem">
+        <button id="run" disabled>Re-encode & Export</button>
+        <a id="download" class="hidden">Download</a>
+      </div>
     </div>
 
     <div id="log">Load .glb files to begin…</div>
