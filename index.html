@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GLB Texture Re-encode (PNG quant + JPEG + Resize)</title>
+    <title>GLB Texture Re-encode (Multi)</title>
     <style>
       :root {
         color-scheme: dark light;
@@ -55,8 +55,9 @@
     <h1>GLB Texture Re-encoder</h1>
 
     <div class="row">
-      <label for="file">GLB file:</label>
-      <input id="file" type="file" accept=".glb" />
+      <label for="file">GLB files:</label>
+      <input id="file" type="file" accept=".glb" multiple />
+      <small>Supports multiple .glb files</small>
     </div>
 
     <div class="row">
@@ -67,7 +68,6 @@
         <option value="0.25">1/4</option>
         <option value="0.125">1/8</option>
       </select>
-      <small>Applied to all textures before re-encoding</small>
     </div>
 
     <div class="row">
@@ -81,7 +81,6 @@
         value="128"
       />
       <span id="pngColorsVal">128</span>
-      <small>(lossy PNG quantization; preserves alpha)</small>
     </div>
 
     <div class="row">
@@ -98,11 +97,11 @@
     </div>
 
     <div class="row" style="margin-top: 8px">
-      <button id="run" disabled>Re-encode & Export GLB</button>
-      <a id="download" class="hidden" download="compressed.glb">Download</a>
+      <button id="run" disabled>Re-encode & Export</button>
+      <a id="download" class="hidden">Download</a>
     </div>
 
-    <div id="log">Load a .glb to begin…</div>
+    <div id="log">Load .glb files to begin…</div>
 
     <script type="module" src="/main.js"></script>
   </body>

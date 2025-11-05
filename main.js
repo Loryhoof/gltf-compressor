@@ -1,29 +1,24 @@
-// Vite entry. Requires: npm i three upng-js
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import * as UPNG from "upng-js";
+import JSZip from "jszip";
 
-// ---- DOM ----
+// DOM
 const fileInput = document.getElementById("file");
 const runBtn = document.getElementById("run");
 const dl = document.getElementById("download");
 const logBox = document.getElementById("log");
-
 const resizeFactorSel = document.getElementById("resizeFactor");
 const pngColorsRange = document.getElementById("pngColors");
 const pngColorsVal = document.getElementById("pngColorsVal");
 const jpegQRange = document.getElementById("jpegQ");
 const jpegQVal = document.getElementById("jpegQVal");
 
-pngColorsRange.addEventListener(
-  "input",
-  () => (pngColorsVal.textContent = pngColorsRange.value)
-);
-jpegQRange.addEventListener(
-  "input",
-  () => (jpegQVal.textContent = Number(jpegQRange.value).toFixed(2))
-);
+pngColorsRange.oninput = () =>
+  (pngColorsVal.textContent = pngColorsRange.value);
+jpegQRange.oninput = () =>
+  (jpegQVal.textContent = Number(jpegQRange.value).toFixed(2));
 
 const log = (...a) => {
   console.log(...a);
@@ -34,7 +29,7 @@ const log = (...a) => {
       .join(" ");
 };
 
-// ---- Loader setup (no renderer needed) ----
+// Three.js loaders
 const loader = new GLTFLoader();
 const draco = new DRACOLoader();
 draco.setDecoderPath(
@@ -42,76 +37,83 @@ draco.setDecoderPath(
 );
 loader.setDRACOLoader(draco);
 
-let arrayBuffer = null;
-
-fileInput.addEventListener("change", async (e) => {
-  dl.classList.add("hidden");
-  dl.removeAttribute("href");
-  dl.removeAttribute("download");
-  logBox.textContent = "Loading file…";
-
-  const file = e.target.files?.[0];
-  if (!file) {
+// ---- Multiple file handling ----
+fileInput.addEventListener("change", (e) => {
+  const files = e.target.files;
+  if (!files?.length) {
     runBtn.disabled = true;
+    logBox.textContent = "No files selected.";
     return;
   }
-  try {
-    arrayBuffer = await file.arrayBuffer();
-    logBox.textContent = `Loaded: ${file.name} (${Math.round(
-      file.size / 1024
-    )} KB)`;
-    runBtn.disabled = false;
-  } catch (err) {
-    logBox.textContent = `Failed to read file: ${err}`;
-    arrayBuffer = null;
-    runBtn.disabled = true;
-  }
+  runBtn.disabled = false;
+  logBox.textContent =
+    `Loaded ${files.length} file(s):\n` +
+    Array.from(files)
+      .map((f) => `- ${f.name} (${Math.round(f.size / 1024)} KB)`)
+      .join("\n");
 });
 
 runBtn.addEventListener("click", async () => {
-  if (!arrayBuffer) return;
+  const files = fileInput.files;
+  if (!files?.length) return;
   runBtn.disabled = true;
-  try {
-    const out = await processGLB(arrayBuffer, {
-      resizeFactor: Number(resizeFactorSel.value), // 1, 0.5, 0.25, 0.125
-      pngColors: parseInt(pngColorsRange.value, 10),
-      jpegQuality: Number(jpegQRange.value),
-    });
+  dl.classList.add("hidden");
+  logBox.textContent = "Processing files…";
 
-    const blob = new Blob([out], { type: "model/gltf-binary" });
-    const url = URL.createObjectURL(blob);
+  const results = [];
 
-    const inName = fileInput.files?.[0]?.name || "model.glb";
-    const base = inName.replace(/\.glb$/i, "");
-    const outName = `${base}.reencoded.glb`;
+  for (const file of files) {
+    try {
+      log(`\n==== ${file.name} ====`);
+      const buffer = await file.arrayBuffer();
 
-    dl.href = url;
-    dl.download = outName;
-    dl.textContent = `Download ${outName}`;
-    dl.classList.remove("hidden");
+      const out = await processGLB(buffer, {
+        resizeFactor: Number(resizeFactorSel.value),
+        pngColors: parseInt(pngColorsRange.value, 10),
+        jpegQuality: Number(jpegQRange.value),
+      });
 
-    log("Done. Ready to download.");
-  } catch (err) {
-    log("Error:", err);
-  } finally {
-    runBtn.disabled = false;
+      const blob = new Blob([out], { type: "model/gltf-binary" });
+      const url = URL.createObjectURL(blob);
+      const outName = file.name.replace(/\.glb$/i, ".reencoded.glb");
+      results.push({ name: outName, url });
+      log(`Done: ${outName}`);
+    } catch (err) {
+      log(`Error with ${file.name}:`, err);
+    }
   }
+
+  if (results.length > 1) {
+    const zip = new JSZip();
+    for (const r of results) {
+      const res = await fetch(r.url);
+      const blob = await res.blob();
+      zip.file(r.name, blob);
+    }
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const zipUrl = URL.createObjectURL(zipBlob);
+    dl.href = zipUrl;
+    dl.download = "compressed_glbs.zip";
+    dl.textContent = "Download compressed_glbs.zip";
+  } else if (results.length === 1) {
+    const r = results[0];
+    dl.href = r.url;
+    dl.download = r.name;
+    dl.textContent = `Download ${r.name}`;
+  }
+
+  dl.classList.remove("hidden");
+  log("\nAll done!");
+  runBtn.disabled = false;
 });
 
-// ---- Core ----
+// ---- Helpers (same as before) ----
 function loadGLBFromArrayBuffer(buffer) {
-  return new Promise((resolve, reject) => {
-    loader.parse(
-      buffer,
-      "",
-      (gltf) => resolve(gltf),
-      (err) => reject(err)
-    );
-  });
+  return new Promise((res, rej) => loader.parse(buffer, "", res, rej));
 }
 
 function collectTextures(root) {
-  const textureProps = [
+  const props = [
     "map",
     "alphaMap",
     "aoMap",
@@ -130,27 +132,19 @@ function collectTextures(root) {
   root.traverse((o) => {
     if (o.isMesh && o.material) {
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const m of mats) {
-        for (const p of textureProps) {
-          const t = m[p];
-          if (t && t.isTexture) set.add(t);
-        }
-      }
+      for (const m of mats)
+        for (const p of props) if (m[p]?.isTexture) set.add(m[p]);
     }
   });
   return Array.from(set);
 }
 
-// Read original mime type from parser associations
-function getOriginalMimeTypeForTexture(texture, gltf) {
-  const assoc = gltf.parser.associations?.get(texture);
+function getOriginalMimeTypeForTexture(tex, gltf) {
+  const assoc = gltf.parser.associations?.get(tex);
   if (!assoc || assoc.textures === undefined) return null;
   try {
-    const texIndex = assoc.textures;
-    const texDef = gltf.parser.json.textures?.[texIndex];
-    if (!texDef) return null;
-    const imgIndex = texDef.source;
-    const imgDef = gltf.parser.json.images?.[imgIndex];
+    const texDef = gltf.parser.json.textures?.[assoc.textures];
+    const imgDef = gltf.parser.json.images?.[texDef?.source];
     return imgDef?.mimeType || null;
   } catch {
     return null;
@@ -160,7 +154,6 @@ function getOriginalMimeTypeForTexture(texture, gltf) {
 function imageToCanvas(image) {
   const w = image.width || image.videoWidth || 0;
   const h = image.height || image.videoHeight || 0;
-  if (!w || !h) return null;
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -169,128 +162,68 @@ function imageToCanvas(image) {
   return c;
 }
 
-function resizeCanvas(srcCanvas, scale) {
-  if (!srcCanvas || scale === 1) return srcCanvas;
-  const w = Math.max(1, Math.round(srcCanvas.width * scale));
-  const h = Math.max(1, Math.round(srcCanvas.height * scale));
-  const out = document.createElement("canvas");
-  out.width = w;
-  out.height = h;
-  const ctx = out.getContext("2d");
-  // Higher-quality downscale
+function resizeCanvas(src, scale) {
+  if (scale === 1) return src;
+  const w = Math.max(1, Math.round(src.width * scale));
+  const h = Math.max(1, Math.round(src.height * scale));
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height, 0, 0, w, h);
-  return out;
+  ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, w, h);
+  return c;
 }
 
-function canvasToJPEGBlob(canvas, quality) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) =>
-        blob ? resolve(blob) : reject(new Error("JPEG encode failed")),
+function canvasToJPEGBlob(c, q) {
+  return new Promise((res, rej) =>
+    c.toBlob(
+      (b) => (b ? res(b) : rej(new Error("JPEG failed"))),
       "image/jpeg",
-      quality
-    );
-  });
+      q
+    )
+  );
 }
 
-// PNG quantization using UPNG.js (lossy; keeps alpha)
-async function canvasToQuantizedPNGBlob(canvas, colors /* 16..256 */) {
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  const { width: w, height: h } = canvas;
-  const imgData = ctx.getImageData(0, 0, w, h);
-  const rgbaAB = imgData.data.buffer; // ArrayBuffer of RGBA
-  const pngAB = UPNG.encode([rgbaAB], w, h, colors);
+async function canvasToQuantizedPNGBlob(c, colors) {
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  const { width, height } = c;
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const pngAB = UPNG.encode([imgData.data.buffer], width, height, colors);
   return new Blob([pngAB], { type: "image/png" });
 }
 
-async function reencodeTexture(texture, mime, opts) {
-  const img = texture.image;
+async function reencodeTexture(tex, mime, opts) {
+  const img = tex.image;
   if (!img) return false;
-
-  let srcCanvas = null;
-  if (
-    img instanceof ImageBitmap ||
-    img instanceof HTMLImageElement ||
-    img instanceof HTMLCanvasElement ||
-    img instanceof OffscreenCanvas
-  ) {
-    srcCanvas = imageToCanvas(img);
-  } else if (img.data && img.width && img.height) {
-    // DataTexture case
-    srcCanvas = document.createElement("canvas");
-    srcCanvas.width = img.width;
-    srcCanvas.height = img.height;
-    const ctx = srcCanvas.getContext("2d");
-    const imageData = new ImageData(
-      new Uint8ClampedArray(img.data.buffer),
-      img.width,
-      img.height
-    );
-    ctx.putImageData(imageData, 0, 0);
-  }
-  if (!srcCanvas) return false;
-
-  const beforeW = srcCanvas.width,
-    beforeH = srcCanvas.height;
-  const resized = resizeCanvas(srcCanvas, opts.resizeFactor);
-  const afterW = resized.width,
-    afterH = resized.height;
-
-  try {
-    let blob;
-    if (mime === "image/jpeg") {
-      blob = await canvasToJPEGBlob(resized, opts.jpegQuality);
-    } else {
-      blob = await canvasToQuantizedPNGBlob(resized, opts.pngColors);
-    }
-
-    const bitmap = await createImageBitmap(blob);
-    texture.image = bitmap;
-    texture.needsUpdate = true;
-    texture.userData = texture.userData || {};
-    texture.userData.mimeType =
-      mime === "image/jpeg" ? "image/jpeg" : "image/png";
-
-    log(
-      `Re-encoded ${texture.name || "(unnamed)"} as ${
-        texture.userData.mimeType
-      }  ${beforeW}×${beforeH} -> ${afterW}×${afterH}` +
-        (mime === "image/jpeg"
-          ? `  q=${opts.jpegQuality}`
-          : `  colors=${opts.pngColors}`)
-    );
-    return true;
-  } catch (e) {
-    log("Texture re-encode failed:", e);
-    return false;
-  }
+  const src = imageToCanvas(img);
+  const resized = resizeCanvas(src, opts.resizeFactor);
+  let blob;
+  if (mime === "image/jpeg")
+    blob = await canvasToJPEGBlob(resized, opts.jpegQuality);
+  else blob = await canvasToQuantizedPNGBlob(resized, opts.pngColors);
+  const bitmap = await createImageBitmap(blob);
+  tex.image = bitmap;
+  tex.userData = { mimeType: mime };
+  tex.needsUpdate = true;
+  return true;
 }
 
 async function processGLB(buffer, opts) {
-  log("Parsing GLB…");
   const gltf = await loadGLBFromArrayBuffer(buffer);
-
   const textures = collectTextures(gltf.scene);
-  log(`Found ${textures.length} texture(s).`);
-
   let ok = 0;
-  for (const tex of textures) {
-    const mime = getOriginalMimeTypeForTexture(tex, gltf) || "image/png";
-    if (await reencodeTexture(tex, mime, opts)) ok++;
+  for (const t of textures) {
+    const mime = getOriginalMimeTypeForTexture(t, gltf) || "image/png";
+    if (await reencodeTexture(t, mime, opts)) ok++;
   }
-  log(`Re-encoded ${ok}/${textures.length} textures.`);
-
-  log("Exporting GLB…");
+  log(`Re-encoded ${ok}/${textures.length} textures`);
   const exporter = new GLTFExporter();
-  const options = {
-    binary: true,
-    embedImages: true,
-    includeCustomExtensions: true,
-  };
-
-  return new Promise((resolve, reject) => {
-    exporter.parse(gltf.scene, (ab) => resolve(ab), reject, options);
+  return new Promise((res, rej) => {
+    exporter.parse(gltf.scene, (ab) => res(ab), rej, {
+      binary: true,
+      embedImages: true,
+    });
   });
 }
